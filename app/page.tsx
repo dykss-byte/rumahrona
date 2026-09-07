@@ -11,6 +11,7 @@ import PaymentPage from "./components/PaymentPage";
 import { CartItem, Order, Product } from "./components/types";
 import TrackingPage from "./components/TrackingPage";
 import NewsPage from "./components/NewsPage";
+import { supabase } from "./lib/supabase";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -27,7 +28,15 @@ export default function Home() {
   };
   const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => item.product.id === productId && item.size === size ? (item.quantity + change > 0 ? [{ ...item, quantity: item.quantity + change }] : []) : [item]));
   const checkout = () => { setShowCart(false); setShowPayment(true); };
-  const completeOrder = () => { const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0); setOrder({ id: String(Date.now()).slice(-10), items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false); };
+  const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
+    const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
+    const { data: savedOrder, error: orderError } = await supabase.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
+    if (orderError || !savedOrder) { setNotice(`Pesanan gagal disimpan: ${orderError?.message ?? "coba lagi"}`); return; }
+    const { error: itemsError } = await supabase.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
+    if (itemsError) { setNotice(`Detail pesanan gagal disimpan: ${itemsError.message}`); return; }
+    setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false);
+  };
   if (showPayment) return <main><PaymentPage cart={cart} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
   if (showTracking) return <main><TrackingPage order={order} onBack={() => setShowTracking(false)} /></main>;
   if (showNews) return <main><NewsPage onBack={() => setShowNews(false)} /></main>;
