@@ -1,0 +1,3 @@
+export default function Footer() {
+  return <footer><div className="footer-brand"><span className="brand-mark">✦</span><b>RUMAH RONA</b><p>Slow-made clothes for<br/>your everyday moments.</p></div><div><p className="eyebrow">JELAJAHI</p><a href="#koleksi">Koleksi</a><a href="#cerita">Tentang kami</a><a href="#panduan">Panduan ukuran</a></div><div><p className="eyebrow">TERHUBUNG</p><a href="#home">Instagram ↗</a><a href="#home">WhatsApp ↗</a><a href="#home">hello@rumahrona.id</a></div><div className="newsletter"><p className="eyebrow">KABAR BAIK</p><p>Dapatkan cerita dan koleksi terbaru kami.</p><div><input placeholder="Email kamu"/><button>↗</button></div></div><small>© 2024 Rumah Rona. Dibuat dengan hati.</small></footer>;
+}

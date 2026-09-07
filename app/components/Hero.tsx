@@ -1,0 +1,3 @@
+export default function Hero() {
+  return <section id="home" className="hero"><div className="hero-copy"><p className="eyebrow">PAKAIAN YANG PUNYA CERITA</p><h1>Rona kecil<br/><em>untuk harimu.</em></h1><p className="hero-text">Baju handmade yang dibuat perlahan, dengan tangan dan hati, untuk menemani setiap momenmu.</p><a className="button dark" href="#koleksi">LIHAT KOLEKSI <span>↗</span></a></div><div className="hero-visual"><div className="sun"/><div className="model-shape"/><div className="doodle">made<br/>slowly<br/>for you</div><div className="hero-caption">LOOK 01 / SS24</div></div></section>;
+}
