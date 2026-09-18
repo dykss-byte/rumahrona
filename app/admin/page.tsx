@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { formatPrice, products } from "../components/types";
 import AuthModal from "../components/AuthModal";
 import { DummyUser, getDummySession, signOutDummy } from "../lib/dummyAuth";
+import { getLocalOrders } from "../lib/localOrders";
 
 type SaleItem = { product_name: string; size: string; quantity: number; price: number };
 type Sale = { id: string; order_number: string; customer_name: string; whatsapp: string; address: string; payment_method: string; total: number; created_at: string; items: SaleItem[] };
@@ -24,8 +25,8 @@ export default function AdminPage() {
   useEffect(() => { const sync = () => setUser(getDummySession()); sync(); window.addEventListener("rumah-rona-auth", sync); return () => window.removeEventListener("rumah-rona-auth", sync); }, []);
   useEffect(() => {
     if (user?.role !== "admin") return;
-    if (!supabase) { setError("Database belum dikonfigurasi di Vercel."); setLoading(false); return; }
-    (async () => { const { data, error: orderError } = await supabase.from("orders").select("id, order_number, customer_name, whatsapp, address, payment_method, total, created_at").order("created_at", { ascending: false }); if (orderError) { setError(orderError.message); setLoading(false); return; } const ids = (data ?? []).map((item) => item.id); const { data: itemData, error: itemError } = ids.length ? await supabase.from("order_items").select("order_id, product_name, size, quantity, price").in("order_id", ids) : { data: [], error: null }; if (itemError) setError(itemError.message); setSales((data ?? []).map((order) => ({ ...order, items: (itemData ?? []).filter((item) => item.order_id === order.id) } as Sale))); setLoading(false); })();
+    if (!supabase) { setSales(getLocalOrders()); setLoading(false); return; }
+    (async () => { const { data, error: orderError } = await supabase.from("orders").select("id, order_number, customer_name, whatsapp, address, payment_method, total, created_at").order("created_at", { ascending: false }); if (orderError) { setSales(getLocalOrders()); setError("Menampilkan pesanan lokal: database belum dapat diakses."); setLoading(false); return; } const ids = (data ?? []).map((item) => item.id); const { data: itemData, error: itemError } = ids.length ? await supabase.from("order_items").select("order_id, product_name, size, quantity, price").in("order_id", ids) : { data: [], error: null }; if (itemError) setError(itemError.message); const remoteSales = (data ?? []).map((order) => ({ ...order, items: (itemData ?? []).filter((item) => item.order_id === order.id) } as Sale)); setSales([...remoteSales, ...getLocalOrders()]); setLoading(false); })();
   }, [user]);
 
   const stock = useMemo(() => products.map((product) => { const sold = sales.flatMap((sale) => sale.items).filter((item) => item.product_name === product.name).reduce((sum, item) => sum + item.quantity, 0); return { ...product, sold, remaining: Math.max(0, INITIAL_STOCK - sold) }; }), [sales]);

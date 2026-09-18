@@ -15,6 +15,7 @@ import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
 import { DummyUser, getDummySession, signOutDummy } from "./lib/dummyAuth";
 import AdminPage from "./admin/page";
+import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -36,13 +37,14 @@ export default function Home() {
   const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => item.product.id === productId && item.size === size ? (item.quantity + change > 0 ? [{ ...item, quantity: item.quantity + change }] : []) : [item]));
   const checkout = () => { if (!user) { setShowAuth(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
-    if (!supabase) { setNotice("Database belum dikonfigurasi di Vercel. Tambahkan environment Supabase terlebih dahulu."); return; }
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
+    const saveOffline = () => { const localOrder = makeLocalOrder(orderNumber, details, cart, total); saveLocalOrder(localOrder); setOrder({ id: localOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false); };
+    if (!supabase) { saveOffline(); return; }
     const { data: savedOrder, error: orderError } = await supabase.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
-    if (orderError || !savedOrder) { setNotice(`Pesanan gagal disimpan: ${orderError?.message ?? "coba lagi"}`); return; }
+    if (orderError || !savedOrder) { saveOffline(); return; }
     const { error: itemsError } = await supabase.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
-    if (itemsError) { setNotice(`Detail pesanan gagal disimpan: ${itemsError.message}`); return; }
+    if (itemsError) { saveOffline(); return; }
     setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false);
   };
   if (showPayment) return <main><PaymentPage cart={cart} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
