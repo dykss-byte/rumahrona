@@ -14,6 +14,7 @@ import NewsPage from "./components/NewsPage";
 import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
 import { DummyUser, getDummySession, signOutDummy } from "./lib/dummyAuth";
+import AdminPage from "./admin/page";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -46,6 +47,7 @@ export default function Home() {
   if (showPayment) return <main><PaymentPage cart={cart} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
   if (showTracking) return <main><TrackingPage order={order} onBack={() => setShowTracking(false)} /></main>;
   if (showNews) return <main><NewsPage onBack={() => setShowNews(false)} /></main>;
+  if (user?.role === "admin") return <AdminPage />;
 
   return <main>
     <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={signOutDummy} />
