@@ -36,6 +36,7 @@ export default function Home() {
   const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => item.product.id === productId && item.size === size ? (item.quantity + change > 0 ? [{ ...item, quantity: item.quantity + change }] : []) : [item]));
   const checkout = () => { if (!user) { setShowAuth(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
+    if (!supabase) { setNotice("Database belum dikonfigurasi di Vercel. Tambahkan environment Supabase terlebih dahulu."); return; }
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
     const { data: savedOrder, error: orderError } = await supabase.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
