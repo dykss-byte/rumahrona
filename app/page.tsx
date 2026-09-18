@@ -13,7 +13,7 @@ import TrackingPage from "./components/TrackingPage";
 import NewsPage from "./components/NewsPage";
 import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
-import { DummyUser } from "./lib/dummyAuth";
+import { DummyUser, getDummySession, signOutDummy } from "./lib/dummyAuth";
 import AdminPage from "./admin/page";
 import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
 
@@ -27,7 +27,7 @@ export default function Home() {
   const [order, setOrder] = useState<Order | null>(null);
   const [user, setUser] = useState<DummyUser | null>(null);
   const [showAuth, setShowAuth] = useState(false);
-  useEffect(() => { const sync = () => supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); return () => listener?.data.subscription.unsubscribe(); }, []);
+  useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { setUser(localUser); return; } supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; if (email) setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); }); return () => listener?.data.subscription.unsubscribe(); }, []);
   const addToCart = (product: Product, size: string) => {
     if (!user) { setShowAuth(true); return; }
     setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
@@ -53,7 +53,7 @@ export default function Home() {
   if (user?.role === "admin") return <AdminPage />;
 
   return <main>
-    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={() => supabase?.auth.signOut()} />
+    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={() => { signOutDummy(); supabase?.auth.signOut(); }} />
     <Hero />
     <BrandStory />
     <Catalog onAdd={addToCart} />

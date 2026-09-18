@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { formatPrice, products } from "../components/types";
 import AuthModal from "../components/AuthModal";
-import { DummyUser } from "../lib/dummyAuth";
+import { DummyUser, getDummySession, signOutDummy } from "../lib/dummyAuth";
 import { getLocalOrders } from "../lib/localOrders";
 
 type SaleItem = { product_name: string; size: string; quantity: number; price: number };
@@ -22,8 +22,8 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [activeTab, setActiveTab] = useState("Dashboard");
 
-  useEffect(() => { const sync = () => supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); return () => listener?.data.subscription.unsubscribe(); }, []);
-  useEffect(() => { const handleStoreLink = (event: MouseEvent) => { const target = event.target as HTMLElement; if (target.closest(".admin-store-link")) { event.preventDefault(); supabase?.auth.signOut().then(() => { window.location.href = "/"; }); } }; document.addEventListener("click", handleStoreLink); return () => document.removeEventListener("click", handleStoreLink); }, []);
+  useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { setUser(localUser); return; } supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; if (email) setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); }); return () => listener?.data.subscription.unsubscribe(); }, []);
+  useEffect(() => { const handleStoreLink = (event: MouseEvent) => { const target = event.target as HTMLElement; if (target.closest(".admin-store-link")) { event.preventDefault(); signOutDummy(); supabase?.auth.signOut(); } }; document.addEventListener("click", handleStoreLink); return () => document.removeEventListener("click", handleStoreLink); }, []);
   useEffect(() => {
     if (user?.role !== "admin") return;
     if (!supabase) { setSales(getLocalOrders()); setLoading(false); return; }
@@ -34,7 +34,6 @@ export default function AdminPage() {
   const topProducts = useMemo(() => { const totals = new Map<string, number>(); sales.flatMap((sale) => sale.items).forEach((item) => totals.set(item.product_name, (totals.get(item.product_name) ?? 0) + item.quantity)); return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5); }, [sales]);
   const chart = useMemo(() => Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); const key = dateKey(date); return { date, key, total: sales.filter((sale) => dateKey(new Date(sale.created_at)) === key).reduce((sum, sale) => sum + Number(sale.total), 0) }; }), [sales]);
   const maxChart = Math.max(...chart.map((item) => item.total), 1); const revenue = sales.reduce((sum, sale) => sum + Number(sale.total), 0); const units = sales.flatMap((sale) => sale.items).reduce((sum, item) => sum + item.quantity, 0); const customers = new Set(sales.map((sale) => sale.customer_name)).size; const points = chart.map((item, index) => `${index * 100},${180 - (item.total / maxChart) * 160}`).join(" ");
-  const signOutDummy = () => supabase?.auth.signOut().then(() => { window.location.href = "/"; });
 
   if (!user || user.role !== "admin") return <main className="admin-page"><div className="admin-head"><div><p className="eyebrow">RUMAH RONA · ADMIN</p><h1>Login admin</h1><p>Masuk untuk mengelola toko dan melihat laporan.</p>{authError && <p className="auth-error">{authError}</p>}</div><a className="back-link" href="/">← Kembali ke toko</a></div><AuthModal onClose={() => window.location.href = "/"} onAuthenticated={(authenticatedUser) => { if (authenticatedUser.role === "admin") { setUser(authenticatedUser); setAuthError(""); } else { supabase?.auth.signOut(); setAuthError("Akun ini bukan akun admin."); } }} /></main>;
 
