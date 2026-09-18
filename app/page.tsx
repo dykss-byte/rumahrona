@@ -13,7 +13,7 @@ import TrackingPage from "./components/TrackingPage";
 import NewsPage from "./components/NewsPage";
 import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
-import { User } from "@supabase/supabase-js";
+import { DummyUser, getDummySession, signOutDummy } from "./lib/dummyAuth";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -23,9 +23,9 @@ export default function Home() {
   const [showTracking, setShowTracking] = useState(false);
   const [showNews, setShowNews] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<DummyUser | null>(null);
   const [showAuth, setShowAuth] = useState(false);
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null)); const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null)); return () => listener.subscription.unsubscribe(); }, []);
+  useEffect(() => { const sync = () => setUser(getDummySession()); sync(); window.addEventListener("rumah-rona-auth", sync); return () => window.removeEventListener("rumah-rona-auth", sync); }, []);
   const addToCart = (product: Product, size: string) => {
     if (!user) { setShowAuth(true); return; }
     setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
@@ -48,7 +48,7 @@ export default function Home() {
   if (showNews) return <main><NewsPage onBack={() => setShowNews(false)} /></main>;
 
   return <main>
-    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={() => supabase.auth.signOut()} />
+    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={signOutDummy} />
     <Hero />
     <BrandStory />
     <Catalog onAdd={addToCart} />
@@ -56,6 +56,6 @@ export default function Home() {
     <Footer />
     {notice && <div className="toast">✓ {notice}</div>}
     {showCart && <CartDrawer cart={cart} onClose={() => setShowCart(false)} onCheckout={checkout} onChangeQuantity={changeQuantity} />}
-    {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthenticated={() => { setShowAuth(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
+    {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setShowAuth(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
   </main>;
 }
