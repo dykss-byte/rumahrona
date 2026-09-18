@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("Dashboard");
 
   useEffect(() => { const sync = () => setUser(getDummySession()); sync(); window.addEventListener("rumah-rona-auth", sync); return () => window.removeEventListener("rumah-rona-auth", sync); }, []);
+  useEffect(() => { const handleStoreLink = (event: MouseEvent) => { const target = event.target as HTMLElement; if (target.closest(".admin-store-link")) { event.preventDefault(); signOutDummy(); } }; document.addEventListener("click", handleStoreLink); return () => document.removeEventListener("click", handleStoreLink); }, []);
   useEffect(() => {
     if (user?.role !== "admin") return;
     if (!supabase) { setSales(getLocalOrders()); setLoading(false); return; }
