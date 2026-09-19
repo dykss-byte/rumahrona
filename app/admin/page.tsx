@@ -10,7 +10,7 @@ type SaleItem = { product_name: string; size: string; quantity: number; price: n
 type Sale = { id: string; order_number: string; customer_name: string; whatsapp: string; address: string; payment_method: string; total: number; created_at: string; items: SaleItem[] };
 const INITIAL_STOCK = 10;
 
-const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const shortDate = (date: Date) => date.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit" });
 
 export default function AdminPage() {

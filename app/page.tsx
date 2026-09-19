@@ -30,7 +30,7 @@ export default function Home() {
   useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { setUser(localUser); return; } supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; if (email) setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); }); return () => listener?.data.subscription.unsubscribe(); }, []);
   const addToCart = (product: Product, size: string) => {
     if (!user) { setShowAuth(true); return; }
-    setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
+    setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); if (found && found.quantity >= (product.stock ?? 0)) { setNotice("Stok produk ini sudah maksimal."); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
     setNotice(`${product.name} ditambahkan ke keranjang`);
     setTimeout(() => setNotice(""), 2200);
   };
