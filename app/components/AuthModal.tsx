@@ -1,15 +1,16 @@
 "use client";
 import { FormEvent, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { ADMIN_EMAIL, DummyUser, signInDummy, signUpDummy } from "../lib/dummyAuth";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, DummyUser, signInDummy, signUpDummy } from "../lib/dummyAuth";
 
 export default function AuthModal({ onClose, onAuthenticated }: { onClose: () => void; onAuthenticated: (user: DummyUser) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   const useFallback = () => { const fallback = mode === "login" ? signInDummy(email, password) : signUpDummy(email, password); if (fallback) { onAuthenticated(fallback); return true; } return false; };
-  const submit = async (event: FormEvent) => { event.preventDefault(); setLoading(true); setError(""); try {
+  const submit = async (event: FormEvent) => { event.preventDefault(); const normalizedEmail = email.trim().toLowerCase(); if (!normalizedEmail.endsWith("@gmail.com")) { setError("Gunakan email Gmail yang berakhiran @gmail.com."); return; } setLoading(true); setError(""); try {
+    if (mode === "login" && normalizedEmail === ADMIN_EMAIL && password === ADMIN_PASSWORD) { const admin = signInDummy(normalizedEmail, password); if (admin) { onAuthenticated(admin); return; } }
     if (!supabase) throw new Error("Failed to fetch");
-    const result = mode === "login" ? await supabase.auth.signInWithPassword({ email, password }) : await supabase.auth.signUp({ email, password });
+    const result = mode === "login" ? await supabase.auth.signInWithPassword({ email: normalizedEmail, password }) : await supabase.auth.signUp({ email: normalizedEmail, password });
     if (result.error) { const offline = /failed to fetch|network|fetch/i.test(result.error.message); if (offline && useFallback()) return; setError(result.error.message.includes("Invalid login") ? "Email atau password salah." : result.error.message); return; }
     if (mode === "signup" && !result.data.session) { setError("Akun berhasil dibuat. Silakan konfirmasi email lalu masuk."); return; }
     if (result.data.user) { const accountEmail = result.data.user.email ?? email; onAuthenticated({ email: accountEmail, role: accountEmail.toLowerCase() === ADMIN_EMAIL ? "admin" : "customer" }); }
