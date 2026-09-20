@@ -1,11 +1,12 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ProductCard from "./ProductCard";
-import { Product, products } from "./types";
+import { Product, products as defaultProducts } from "./types";
+import { supabase } from "../lib/supabase";
 
 export default function Catalog({ onAdd }: { onAdd: (product: Product, size: string) => void }) {
-  const [category, setCategory] = useState("Semua");
-  const [query, setQuery] = useState("");
-  const filtered = useMemo(() => { const term = query.trim().toLowerCase(); return products.filter((product) => (category === "Semua" || product.category === category) && (!term || `${product.name} ${product.category}`.toLowerCase().includes(term))); }, [category, query]);
+  const [category, setCategory] = useState("Semua"); const [query, setQuery] = useState(""); const [products, setProducts] = useState(defaultProducts);
+  useEffect(() => { if (!supabase) return; Promise.all([supabase.from("products").select("name, stock"), supabase.from("order_items").select("product_name, quantity")]).then(([productResult, itemResult]) => { const sold = new Map<string, number>(); (itemResult.data ?? []).forEach((item) => { const key = String(item.product_name).trim().toLowerCase(); sold.set(key, (sold.get(key) ?? 0) + Number(item.quantity || 0)); }); setProducts(defaultProducts.map((product) => { const remote = productResult.data?.find((item) => item.name === product.name); const remoteStock = Number(remote?.stock); const calculatedStock = Math.max(0, (product.stock ?? 10) - (sold.get(product.name.trim().toLowerCase()) ?? 0)); return { ...product, stock: Number.isFinite(remoteStock) ? Math.min(remoteStock, calculatedStock) : calculatedStock }; })); }); }, []);
+  const filtered = useMemo(() => { const term = query.trim().toLowerCase(); return products.filter((product) => (category === "Semua" || product.category === category) && (!term || `${product.name} ${product.category}`.toLowerCase().includes(term))); }, [category, query, products]);
   return <section className="collection" id="koleksi"><div className="section-heading"><div><p className="eyebrow">PILIHAN UNTUKMU</p><h2>Koleksi terbaru</h2></div><a href="#koleksi">Lihat semua <span>→</span></a></div><div className="catalog-tools"><div className="filter-row">{["Semua", "Atasan", "Bawahan", "Outer", "Dress"].map((item) => <button className={category === item ? "active" : ""} onClick={() => setCategory(item)} key={item}>{item}</button>)}</div><label className="search-box"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari produk..." aria-label="Cari produk" />{query && <button type="button" onClick={() => setQuery("")} aria-label="Hapus pencarian">×</button>}</label></div>{filtered.length ? <div className="product-grid">{filtered.map((product) => <ProductCard product={product} onAdd={onAdd} key={product.id} />)}</div> : <div className="no-results">Produk yang kamu cari belum tersedia.</div>}</section>;
 }

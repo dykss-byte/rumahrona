@@ -41,11 +41,12 @@ export default function Home() {
     const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
     const saveOffline = () => { const localOrder = makeLocalOrder(orderNumber, details, cart, total); saveLocalOrder(localOrder); setOrder({ id: localOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false); };
     if (!supabase) { saveOffline(); return; }
-    const { data: savedOrder, error: orderError } = await supabase.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
+    const client = supabase;
+    const { data: savedOrder, error: orderError } = await client.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
     if (orderError || !savedOrder) { saveOffline(); return; }
-    const { error: itemsError } = await supabase.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
+    const { error: itemsError } = await client.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
     if (itemsError) { saveOffline(); return; }
-    setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false);
+    setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
   };
   if (showPayment) return <main><PaymentPage cart={cart} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
   if (showTracking) return <main><TrackingPage order={order} onBack={() => setShowTracking(false)} /></main>;
