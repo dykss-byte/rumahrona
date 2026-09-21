@@ -48,7 +48,7 @@ export default function Home() {
     if (itemsError) { saveOffline(); return; }
     setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
   };
-  if (showPayment) return <main><PaymentPage cart={cart} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
+  if (showPayment) return <main><PaymentPage cart={cart} userEmail={user?.email} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
   if (showTracking) return <main><TrackingPage order={order} onBack={() => setShowTracking(false)} /></main>;
   if (showNews) return <main><NewsPage onBack={() => setShowNews(false)} /></main>;
   if (user?.role === "admin") return <AdminPage />;

@@ -4,7 +4,7 @@ export const ADMIN_PASSWORD = "admin123";
 const SESSION_KEY = "rumah-rona-session";
 const USERS_KEY = "rumah-rona-users";
 
-export function getDummySession(): DummyUser | null { if (typeof window === "undefined") return null; const value = window.localStorage.getItem(SESSION_KEY); if (!value) return null; return JSON.parse(value) as DummyUser; }
+export function getDummySession(): DummyUser | null { if (typeof window === "undefined") return null; try { const value = window.localStorage.getItem(SESSION_KEY); if (!value) return null; const user = JSON.parse(value) as DummyUser; return user?.email && (user.role === "admin" || user.role === "customer") ? user : null; } catch { window.localStorage.removeItem(SESSION_KEY); return null; } }
 export function signOutDummy() { window.localStorage.removeItem(SESSION_KEY); window.dispatchEvent(new Event("rumah-rona-auth")); window.location.href = "/"; }
 function getLocalUsers(): Record<string, string> { try { return JSON.parse(window.localStorage.getItem(USERS_KEY) ?? "{}") as Record<string, string>; } catch { window.localStorage.removeItem(USERS_KEY); return {}; } }
 export function signInDummy(email: string, password: string): DummyUser | null { const key = email.trim().toLowerCase(); if (key === ADMIN_EMAIL && password === ADMIN_PASSWORD) { const user = { email: ADMIN_EMAIL, role: "admin" as const }; window.localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return user; } const users = getLocalUsers(); if (users[key] !== password) return null; const user = { email: key, role: "customer" as const }; window.localStorage.setItem(SESSION_KEY, JSON.stringify(user)); return user; }
