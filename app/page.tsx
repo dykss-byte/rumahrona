@@ -60,7 +60,7 @@ export default function Home() {
   if (user?.role === "admin" && !viewingStore) return <AdminPage />;
 
   return <main>
-    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} hasAddress={Boolean(profile.address.trim())} onAddressClick={() => setShowAddress(true)} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onAdminClick={() => setViewingStore(false)} onSignOut={() => { signOutDummy(); supabase?.auth.signOut(); }} />
+    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} hasAddress={Boolean(profile.address.trim()) && Boolean(profile.whatsapp.trim())} onAddressClick={() => setShowAddress(true)} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onAdminClick={() => setViewingStore(false)} onSignOut={() => { signOutDummy(); supabase?.auth.signOut(); }} />
     <Hero />
     <BrandStory />
     <Catalog onAdd={addToCart} />
