@@ -2,19 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { CartItem, formatPrice } from "./types";
+import { CustomerProfile } from "../lib/dummyAuth";
 
 type CustomerDetails = { method: string; name: string; whatsapp: string; address: string };
 type FormErrors = Partial<Record<"name" | "whatsapp" | "address", string>>;
 
-export default function PaymentPage({ cart, userEmail, onBack, onSuccess }: { cart: CartItem[]; userEmail?: string; onBack: () => void; onSuccess: (details: CustomerDetails) => Promise<void> }) {
+export default function PaymentPage({ cart, userEmail, initialProfile, onBack, onSuccess }: { cart: CartItem[]; userEmail?: string; initialProfile?: CustomerProfile; onBack: () => void; onSuccess: (details: CustomerDetails) => Promise<void> }) {
   const [method, setMethod] = useState("Transfer Bank");
-  const [name, setName] = useState(() => userEmail?.split("@")[0] ?? "");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [address, setAddress] = useState("");
+  const [name, setName] = useState(() => initialProfile?.name || userEmail?.split("@")[0] || "");
+  const [whatsapp, setWhatsapp] = useState(initialProfile?.whatsapp || "");
+  const [address, setAddress] = useState(initialProfile?.address || "");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  useEffect(() => { if (userEmail) setName(userEmail.split("@")[0]); }, [userEmail]);
+  useEffect(() => {
+    const nextName = initialProfile?.name || userEmail?.split("@")[0] || "";
+    const nextWhatsapp = initialProfile?.whatsapp || "";
+    const nextAddress = initialProfile?.address || "";
+    if (nextName !== name) setName(nextName);
+    if (nextWhatsapp !== whatsapp) setWhatsapp(nextWhatsapp);
+    if (nextAddress !== address) setAddress(nextAddress);
+  }, [userEmail, initialProfile?.name, initialProfile?.whatsapp, initialProfile?.address, name, whatsapp, address]);
 
   const validate = () => {
     const next: FormErrors = {};

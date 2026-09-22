@@ -13,9 +13,10 @@ import TrackingPage from "./components/TrackingPage";
 import NewsPage from "./components/NewsPage";
 import { supabase } from "./lib/supabase";
 import AuthModal from "./components/AuthModal";
-import { DummyUser, getDummySession, signOutDummy } from "./lib/dummyAuth";
+import { CustomerProfile, DummyUser, getDummyProfile, getDummySession, saveDummyProfile, signOutDummy } from "./lib/dummyAuth";
 import AdminPage from "./admin/page";
 import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
+import AddressModal from "./components/AddressModal";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -29,7 +30,10 @@ export default function Home() {
   const [showAuth, setShowAuth] = useState(false);
   const [authForCheckout, setAuthForCheckout] = useState(false);
   const [showJoinPrompt, setShowJoinPrompt] = useState(false);
-  useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { setUser(localUser); return; } supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; if (email) setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); }); return () => listener?.data.subscription.unsubscribe(); }, []);
+  const [viewingStore, setViewingStore] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
+  const [profile, setProfile] = useState<CustomerProfile>({ name: "", whatsapp: "", address: "" });
+  useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { if (localUser.role === "admin" && window.sessionStorage.getItem("rumah-rona-view-store") === "1") { window.sessionStorage.removeItem("rumah-rona-view-store"); setViewingStore(true); } setUser(localUser); setProfile(getDummyProfile(localUser.email)); return; } supabase?.auth.getSession().then(({ data }) => { const sessionUser = data.session?.user; const email = sessionUser?.email; if (email) { setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); setProfile({ name: sessionUser.user_metadata?.name ?? "", whatsapp: sessionUser.user_metadata?.whatsapp ?? "", address: sessionUser.user_metadata?.address ?? "" }); } }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const sessionUser = session?.user; const email = sessionUser?.email; if (email) { setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); setProfile({ name: sessionUser.user_metadata?.name ?? "", whatsapp: sessionUser.user_metadata?.whatsapp ?? "", address: sessionUser.user_metadata?.address ?? "" }); } }); return () => listener?.data.subscription.unsubscribe(); }, []);
   const addToCart = (product: Product, size: string) => {
     setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); if (found && found.quantity >= (product.stock ?? 0)) { setNotice("Stok produk ini sudah maksimal."); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
     setNotice(`${product.name} ditambahkan ke keranjang`);
@@ -39,6 +43,7 @@ export default function Home() {
   const checkout = () => { if (!user) { setShowCart(false); setShowJoinPrompt(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    if (user?.email) saveDummyProfile(user.email, { name: details.name, whatsapp: details.whatsapp, address: details.address });
     const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
     const saveOffline = () => { const localOrder = makeLocalOrder(orderNumber, details, cart, total); saveLocalOrder(localOrder); setOrder({ id: localOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat!"); setShowPayment(false); };
     if (!supabase) { saveOffline(); return; }
@@ -49,13 +54,13 @@ export default function Home() {
     if (itemsError) { saveOffline(); return; }
     setOrder({ id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" }); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
   };
-  if (showPayment) return <main><PaymentPage cart={cart} userEmail={user?.email} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
+  if (showPayment) return <main><PaymentPage cart={cart} userEmail={user?.email} initialProfile={profile} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;
   if (showTracking) return <main><TrackingPage order={order} onBack={() => setShowTracking(false)} /></main>;
   if (showNews) return <main><NewsPage onBack={() => setShowNews(false)} /></main>;
-  if (user?.role === "admin") return <AdminPage />;
+  if (user?.role === "admin" && !viewingStore) return <AdminPage />;
 
   return <main>
-    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onSignOut={() => { signOutDummy(); supabase?.auth.signOut(); }} />
+    <Navbar cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)} hasOrder={Boolean(order)} userEmail={user?.email} hasAddress={Boolean(profile.address.trim())} onAddressClick={() => setShowAddress(true)} onCartClick={() => setShowCart(true)} onTrackingClick={() => setShowTracking(true)} onNewsClick={() => setShowNews(true)} onAuthClick={() => setShowAuth(true)} onAdminClick={() => setViewingStore(false)} onSignOut={() => { signOutDummy(); supabase?.auth.signOut(); }} />
     <Hero />
     <BrandStory />
     <Catalog onAdd={addToCart} />
@@ -64,6 +69,7 @@ export default function Home() {
     {notice && <div className="toast">✓ {notice}</div>}
     {showCart && <CartDrawer cart={cart} onClose={() => setShowCart(false)} onCheckout={checkout} onChangeQuantity={changeQuantity} />}
     {showJoinPrompt && <div className="modal-backdrop" onClick={() => setShowJoinPrompt(false)}><div className="auth-modal join-prompt" onClick={(event) => event.stopPropagation()}><button className="close" onClick={() => setShowJoinPrompt(false)}>×</button><p className="eyebrow">RUMAH RONA</p><h2>Silakan bergabung dengan kami</h2><p className="auth-copy">Masuk atau daftar terlebih dahulu untuk melanjutkan checkout pesananmu.</p><button className="button dark auth-submit" onClick={() => { setShowJoinPrompt(false); setAuthForCheckout(true); setShowAuth(true); }}>LOGIN / DAFTAR →</button></div></div>}
-    {showAuth && <AuthModal checkoutMode={authForCheckout} onClose={() => { setShowAuth(false); setAuthForCheckout(false); }} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setShowAuth(false); setAuthForCheckout(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
+    {showAuth && <AuthModal checkoutMode={authForCheckout} onClose={() => { setShowAuth(false); setAuthForCheckout(false); }} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setProfile(getDummyProfile(authenticatedUser.email)); setShowAuth(false); setAuthForCheckout(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
+    {showAddress && user?.email && <AddressModal profile={profile} onClose={() => setShowAddress(false)} onSave={async (nextProfile) => { setProfile(nextProfile); saveDummyProfile(user.email, nextProfile); await supabase?.auth.updateUser({ data: nextProfile }); setShowAddress(false); setNotice("Alamat berhasil disimpan."); setTimeout(() => setNotice(""), 2200); }} />}
   </main>;
 }
