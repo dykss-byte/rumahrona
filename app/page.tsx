@@ -27,15 +27,16 @@ export default function Home() {
   const [order, setOrder] = useState<Order | null>(null);
   const [user, setUser] = useState<DummyUser | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [authForCheckout, setAuthForCheckout] = useState(false);
+  const [showJoinPrompt, setShowJoinPrompt] = useState(false);
   useEffect(() => { const sync = () => { const localUser = getDummySession(); if (localUser) { setUser(localUser); return; } supabase?.auth.getSession().then(({ data }) => { const email = data.session?.user.email; setUser(email ? { email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" } : null); }); }; sync(); const listener = supabase?.auth.onAuthStateChange((_event, session) => { const email = session?.user.email; if (email) setUser({ email, role: email.toLowerCase() === "admin@gmail.com" ? "admin" : "customer" }); }); return () => listener?.data.subscription.unsubscribe(); }, []);
   const addToCart = (product: Product, size: string) => {
-    if (!user) { setShowAuth(true); return; }
     setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); if (found && found.quantity >= (product.stock ?? 0)) { setNotice("Stok produk ini sudah maksimal."); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
     setNotice(`${product.name} ditambahkan ke keranjang`);
     setTimeout(() => setNotice(""), 2200);
   };
   const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => item.product.id === productId && item.size === size ? (item.quantity + change > 0 ? [{ ...item, quantity: item.quantity + change }] : []) : [item]));
-  const checkout = () => { if (!user) { setShowAuth(true); return; } setShowCart(false); setShowPayment(true); };
+  const checkout = () => { if (!user) { setShowCart(false); setShowJoinPrompt(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const orderNumber = `RR-${Date.now().toString().slice(-8)}`;
@@ -62,6 +63,7 @@ export default function Home() {
     <Footer />
     {notice && <div className="toast">✓ {notice}</div>}
     {showCart && <CartDrawer cart={cart} onClose={() => setShowCart(false)} onCheckout={checkout} onChangeQuantity={changeQuantity} />}
-    {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setShowAuth(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
+    {showJoinPrompt && <div className="modal-backdrop" onClick={() => setShowJoinPrompt(false)}><div className="auth-modal join-prompt" onClick={(event) => event.stopPropagation()}><button className="close" onClick={() => setShowJoinPrompt(false)}>×</button><p className="eyebrow">RUMAH RONA</p><h2>Silakan bergabung dengan kami</h2><p className="auth-copy">Masuk atau daftar terlebih dahulu untuk melanjutkan checkout pesananmu.</p><button className="button dark auth-submit" onClick={() => { setShowJoinPrompt(false); setAuthForCheckout(true); setShowAuth(true); }}>LOGIN / DAFTAR →</button></div></div>}
+    {showAuth && <AuthModal checkoutMode={authForCheckout} onClose={() => { setShowAuth(false); setAuthForCheckout(false); }} onAuthenticated={(authenticatedUser) => { setUser(authenticatedUser); setShowAuth(false); setAuthForCheckout(false); if (cart.length) { setShowCart(false); setShowPayment(true); } }} />}
   </main>;
 }
