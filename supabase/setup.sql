@@ -3,7 +3,10 @@
 
 alter table public.products add column if not exists description text default '';
 alter table public.orders add column if not exists status text default 'Pesanan diterima';
-create unique index if not exists orders_order_number_unique on public.orders (order_number);
+-- Index biasa dipakai agar setup tetap berhasil meskipun ada data lama
+-- dengan nomor pesanan yang sama.
+drop index if exists public.orders_order_number_unique;
+create index if not exists orders_order_number_idx on public.orders (order_number);
 
 update public.orders
 set status = 'Pesanan diterima'
