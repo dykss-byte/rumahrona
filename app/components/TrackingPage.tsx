@@ -10,17 +10,18 @@ export default function TrackingPage({ order, onBack }: { order: Order | null; o
     if (!order) return;
     const syncStatus = async () => {
       const localStatus = getOrderStatus(order.id, (order.status as OrderStatus | undefined) ?? "Pesanan diterima");
-      setStatus(localStatus);
-      if (getSavedOrderStatus(order.id)) return;
-      if (!supabase) return;
-      const { data } = await supabase.from("orders").select("status").eq("order_number", order.id).maybeSingle();
-      if (data?.status) setStatus(data.status as OrderStatus);
+      if (!supabase) { setStatus(localStatus); return; }
+      const { data, error } = await supabase.from("orders").select("status").eq("order_number", order.id).maybeSingle();
+      if (!error && data?.status) setStatus(data.status as OrderStatus);
+      else setStatus(getSavedOrderStatus(order.id) ?? localStatus);
     };
     syncStatus();
     const interval = window.setInterval(syncStatus, 5000);
     const onStorage = () => syncStatus();
+    const onFocus = () => syncStatus();
     window.addEventListener("storage", onStorage);
-    return () => { window.clearInterval(interval); window.removeEventListener("storage", onStorage); };
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(interval); window.removeEventListener("storage", onStorage); window.removeEventListener("focus", onFocus); };
   }, [order]);
 
   const statusMessage = status === "Selesai" ? "Pesananmu telah selesai." : status === "Dibatalkan" ? "Pesanan ini dibatalkan oleh admin." : "Pesananmu sedang diproses oleh Rumah Rona.";
