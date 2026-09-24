@@ -6,7 +6,7 @@ export type LocalOrder = { id: string; order_number: string; customer_name: stri
 const KEY = "rumah-rona-orders";
 const STATUS_KEY = "rumah-rona-order-statuses";
 
-export function saveLocalOrder(order: LocalOrder) { const existing = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as LocalOrder[]; window.localStorage.setItem(KEY, JSON.stringify([order, ...existing])); }
+export function saveLocalOrder(order: LocalOrder) { const existing = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as LocalOrder[]; window.localStorage.setItem(KEY, JSON.stringify([order, ...existing])); window.dispatchEvent(new Event("rumah-rona-orders-updated")); }
 export function getLocalOrders(): LocalOrder[] { if (typeof window === "undefined") return []; return JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as LocalOrder[]; }
 export function saveOrderStatus(orderNumber: string, status: OrderStatus) { const statuses = JSON.parse(window.localStorage.getItem(STATUS_KEY) ?? "{}") as Record<string, OrderStatus>; statuses[orderNumber] = status; window.localStorage.setItem(STATUS_KEY, JSON.stringify(statuses)); }
 export function getOrderStatus(orderNumber: string, fallback: OrderStatus = "Pesanan diterima"): OrderStatus { if (typeof window === "undefined") return fallback; const statuses = JSON.parse(window.localStorage.getItem(STATUS_KEY) ?? "{}") as Record<string, OrderStatus>; return statuses[orderNumber] ?? fallback; }

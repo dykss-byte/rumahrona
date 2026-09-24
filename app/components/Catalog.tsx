@@ -6,6 +6,7 @@ import { Product, products as defaultProducts } from "./types";
 import { supabase } from "../lib/supabase";
 import { getProductCache } from "../lib/productCache";
 import { getCategoryCache } from "../lib/categoryCache";
+import { getLocalOrders } from "../lib/localOrders";
 
 export default function Catalog({ onAdd }: { onAdd: (product: Product, size: string) => void }) {
   const [category, setCategory] = useState("Semua");
@@ -16,7 +17,18 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
   useEffect(() => { const refreshCategories = () => setSavedCategories(getCategoryCache()); refreshCategories(); window.addEventListener("storage", refreshCategories); window.addEventListener("rumah-rona-products-updated", refreshCategories); return () => { window.removeEventListener("storage", refreshCategories); window.removeEventListener("rumah-rona-products-updated", refreshCategories); }; }, []);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      const refreshLocalProducts = () => {
+        const sold = new Map<string, number>();
+        getLocalOrders().forEach((order) => order.items.forEach((item) => { const key = item.product_name.trim().toLowerCase(); sold.set(key, (sold.get(key) ?? 0) + item.quantity); }));
+        setProducts(defaultProducts.map((product) => ({ ...product, stock: Math.max(0, (product.stock ?? 10) - (sold.get(product.name.trim().toLowerCase()) ?? 0)) })));
+      };
+      refreshLocalProducts();
+      const timer = window.setInterval(refreshLocalProducts, 1000);
+      window.addEventListener("storage", refreshLocalProducts);
+      window.addEventListener("rumah-rona-orders-updated", refreshLocalProducts);
+      return () => { window.clearInterval(timer); window.removeEventListener("storage", refreshLocalProducts); window.removeEventListener("rumah-rona-orders-updated", refreshLocalProducts); };
+    }
     const client = supabase;
     let alive = true;
     const refreshProducts = async () => {
@@ -26,8 +38,8 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
       ]);
       if (!alive || !productData) return;
       const cached = getProductCache();
-      const remoteRows = productData.map((row) => cached.find((item) => String(item.id) === String(row.id)) ?? row);
-      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push(item); });
+      const remoteRows = productData.map((row) => ({ ...row, description: cached.find((item) => String(item.id) === String(row.id))?.description }));
+      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, description: item.description ?? "" }); });
       const sold = new Map<string, number>();
       (itemData ?? []).forEach((item) => {
         const key = String(item.product_name).trim().toLowerCase();
