@@ -57,3 +57,20 @@ drop trigger if exists order_items_decrease_product_stock on public.order_items;
 create trigger order_items_decrease_product_stock
 after insert on public.order_items
 for each row execute function public.decrease_product_stock();
+
+-- Aktifkan sinkronisasi realtime untuk status pesanan.
+alter table public.orders replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'orders'
+  ) then
+    alter publication supabase_realtime add table public.orders;
+  end if;
+end
+$$;

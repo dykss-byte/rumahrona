@@ -24,7 +24,9 @@ export default function TrackingPage({ order, orders, onBack }: { order: Order |
     const onRefresh = () => syncStatuses();
     window.addEventListener("storage", onRefresh);
     window.addEventListener("focus", onRefresh);
-    return () => { window.clearInterval(interval); window.removeEventListener("storage", onRefresh); window.removeEventListener("focus", onRefresh); };
+    const client = supabase;
+    const channels = client ? trackedOrders.map((trackedOrder) => client.channel(`order-status-${trackedOrder.id}`).on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: `order_number=eq.${trackedOrder.id}` }, (payload) => { const nextStatus = (payload.new as { status?: OrderStatus }).status; if (nextStatus) setStatuses((current) => ({ ...current, [trackedOrder.id]: nextStatus })); }).subscribe()) : [];
+    return () => { window.clearInterval(interval); window.removeEventListener("storage", onRefresh); window.removeEventListener("focus", onRefresh); channels.forEach((channel) => { if (client) client.removeChannel(channel); }); };
   }, [orders, order]);
 
   const messageFor = (status: OrderStatus) => status === "Selesai" ? "Pesananmu telah selesai." : status === "Dibatalkan" ? "Pesanan ini dibatalkan oleh admin." : "Pesananmu sedang diproses oleh Rumah Rona.";
