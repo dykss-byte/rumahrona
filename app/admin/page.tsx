@@ -8,7 +8,7 @@ import { DummyUser, getDummySession, signOutDummy } from "../lib/dummyAuth";
 import { getLocalOrders } from "../lib/localOrders";
 import { getProductCache, saveProductCache } from "../lib/productCache";
 import { getCategoryCache, saveCategoryCache } from "../lib/categoryCache";
-import { splitStock } from "../lib/sizeStock";
+import { normalizeSizeStock, splitStock, totalSizeStock } from "../lib/sizeStock";
 
 type SaleItem = { product_name: string; size: string; quantity: number; price: number };
 type Sale = { id: string; order_number: string; customer_name: string; whatsapp: string; address: string; payment_method: string; total: number; created_at: string; status?: string; items: SaleItem[] };
@@ -102,7 +102,20 @@ export default function AdminPage() {
   const editProduct = (product: RemoteProduct) => { setActiveTab("Produk"); setError(""); setEditingId(product.id); setForm({ id: product.id, name: product.name, price: String(product.price), category: product.category, stock: String(product.stock), description: product.description }); };
   const saveProduct = async (event: FormEvent) => { event.preventDefault(); if (!supabase || !form.name.trim() || !form.price || !form.stock) { setError("Lengkapi nama, harga, dan stok produk."); return; } const client = supabase; setSaving(true); setError(""); const isEdit = editingId !== null; const stock = Math.max(0, Number(form.stock)); const payload = { name: form.name.trim(), price: Number(form.price), category: form.category, stock, size_stock: splitStock(stock), description: form.description.trim() }; const run = (data: { name: string; price: number; category: string; stock: number; size_stock?: Record<string, number>; description?: string }) => isEdit ? client.from("products").update(data).eq("id", editingId) : client.from("products").insert(data); let result = await run(payload); if (result.error && /description|size_stock|column/i.test(result.error.message)) result = await run({ name: payload.name, price: payload.price, category: payload.category, stock: payload.stock }); if (result.error) setError(`Produk gagal disimpan: ${result.error.message}`); else { const localProduct: RemoteProduct = { id: editingId ?? `new-${Date.now()}`, name: payload.name, price: payload.price, category: payload.category, stock: payload.stock, sizeStocks: payload.size_stock, description: payload.description }; setRemoteProducts((current) => { const next = isEdit ? current.map((item) => sameProductId(item.id, editingId) ? localProduct : item) : [...current, localProduct]; saveProductCache(next); return next; }); setForm(emptyForm); setEditingId(null); } setSaving(false); };
   const deleteProduct = async (id: string | number) => { if (!supabase || !window.confirm("Hapus produk ini?")) return; const { error: deleteError } = await supabase.from("products").delete().eq("id", id); if (deleteError) setError(`Produk gagal dihapus: ${deleteError.message}`); else setRemoteProducts((current) => { const next = current.filter((item) => !sameProductId(item.id, id)); saveProductCache(next); return next; }); };
-  const stockChange = async (product: RemoteProduct, amount: number) => { if (!supabase) return; const next = Math.max(0, product.stock + amount); const { error: updateError } = await supabase.from("products").update({ stock: next }).eq("id", product.id); if (updateError) setError(updateError.message); else setRemoteProducts((current) => { const nextProducts = current.map((item) => sameProductId(item.id, product.id) ? { ...item, stock: next } : item); saveProductCache(nextProducts); return nextProducts; }); };
+  const stockChange = async (product: RemoteProduct, amount: number) => {
+    const sizes = ["S", "M", "L", "XL"];
+    const sizeStocks = normalizeSizeStock(product.sizeStocks, product.stock, sizes);
+    const target = amount < 0 ? [...sizes].reverse().find((size) => sizeStocks[size] > 0) : sizes[sizes.length - 1];
+    if (!target) return;
+    sizeStocks[target] = Math.max(0, sizeStocks[target] + amount);
+    const next = totalSizeStock(sizeStocks);
+    const nextProducts = (current: RemoteProduct[]) => { const source = current.length ? current : productsForAdmin; const updated = source.map((item) => sameProductId(item.id, product.id) ? { ...item, stock: next, sizeStocks } : item); saveProductCache(updated); return updated; };
+    if (!supabase) { setRemoteProducts(nextProducts); return; }
+    setRemoteProducts(nextProducts);
+    let result = await supabase.from("products").update({ stock: next, size_stock: sizeStocks }).eq("id", product.id).select("id").maybeSingle();
+    if (!result.data && !result.error) result = await supabase.from("products").update({ stock: next, size_stock: sizeStocks }).eq("name", product.name).select("id").maybeSingle();
+    if (result.error || !result.data) { setError(result.error?.message || "Stok gagal disimpan ke database."); await loadData(); }
+  };
   const categoryProductCount = (category: string) => productsForAdmin.filter((product) => product.category.trim().toLowerCase() === category.trim().toLowerCase()).length;
   const addCategory = (event: FormEvent) => { event.preventDefault(); const category = newCategory.trim(); if (!category) return; if (editingCategory && categoryProductCount(editingCategory) > 0) { setError("Kategori yang sudah memiliki produk tidak dapat diubah."); return; } if (savedCategories.some((item) => item.toLowerCase() === category.toLowerCase() && item.toLowerCase() !== editingCategory?.toLowerCase())) { setError("Kategori tersebut sudah ada."); return; } const next = editingCategory ? [...new Set(savedCategories.map((item) => item === editingCategory ? category : item))] : [...new Set([...savedCategories, category])]; setSavedCategories(next); saveCategoryCache(next); setForm((current) => ({ ...current, category })); setNewCategory(""); setEditingCategory(null); setError(""); };
   const editCategory = (category: string) => { if (categoryProductCount(category) > 0) { setError("Kategori yang sudah memiliki produk tidak dapat diubah."); return; } setEditingCategory(category); setNewCategory(category); setError(""); };
