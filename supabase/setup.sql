@@ -33,6 +33,34 @@ create policy "public can insert orders" on public.orders for insert with check 
 drop policy if exists "public can update order status" on public.orders;
 create policy "public can update order status" on public.orders for update using (true) with check (status in ('Pesanan diterima', 'Diproses', 'Dikemas', 'Dikirim', 'Selesai', 'Dibatalkan'));
 
+create or replace function public.update_order_status(p_order_number text, p_status text)
+returns public.orders
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_order public.orders;
+begin
+  if p_status not in ('Pesanan diterima', 'Diproses', 'Dikemas', 'Dikirim', 'Selesai', 'Dibatalkan') then
+    raise exception 'Status pesanan tidak valid';
+  end if;
+
+  update public.orders
+  set status = p_status
+  where order_number = p_order_number
+  returning * into updated_order;
+
+  if updated_order is null then
+    raise exception 'Pesanan tidak ditemukan';
+  end if;
+
+  return updated_order;
+end;
+$$;
+
+grant execute on function public.update_order_status(text, text) to anon, authenticated;
+
 drop policy if exists "public can read order items" on public.order_items;
 create policy "public can read order items" on public.order_items for select using (true);
 
