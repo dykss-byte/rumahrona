@@ -70,21 +70,32 @@ export default function Home() {
     const { data: savedOrder, error: orderError } = await client.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
     if (orderError || !savedOrder) { saveOffline(); return; }
     const productNames = [...new Set(cart.map((item) => item.product.name))];
-    const { data: stockBeforeRows } = await client.from("products").select("name, stock, size_stock").in("name", productNames);
+    const stockQuery = await client.from("products").select("name, stock, size_stock").in("name", productNames);
+    const hasSizeStockColumn = !stockQuery.error;
+    const stockBeforeRows = hasSizeStockColumn ? stockQuery.data : (await client.from("products").select("name, stock").in("name", productNames)).data;
     const { error: itemsError } = await client.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
     if (itemsError) { saveOffline(); return; }
     await Promise.all((stockBeforeRows ?? []).map(async (row) => {
       const matching = cart.filter((item) => item.product.name === row.name);
-      const productSizes = matching[0]?.product.sizes ?? ["S", "M", "L", "XL"];
-      const beforeSizes = normalizeSizeStock((row as { size_stock?: unknown }).size_stock, Number(row.stock ?? 0), productSizes);
-      const expectedSizes = { ...beforeSizes };
-      matching.forEach((item) => { expectedSizes[item.size] = Math.max(0, (expectedSizes[item.size] ?? 0) - item.quantity); });
-      const { data: currentRow } = await client.from("products").select("stock, size_stock").eq("name", row.name).maybeSingle();
+      const quantity = matching.reduce((sum, item) => sum + item.quantity, 0);
+      const currentQuery = hasSizeStockColumn
+        ? await client.from("products").select("stock, size_stock").eq("name", row.name).maybeSingle()
+        : await client.from("products").select("stock").eq("name", row.name).maybeSingle();
+      const currentRow = currentQuery.data;
       if (currentRow) {
-        const currentSizes = normalizeSizeStock((currentRow as { size_stock?: unknown }).size_stock, Number(currentRow.stock ?? 0), productSizes);
-        const sizeStocks = Object.fromEntries(productSizes.map((size) => [size, Math.min(currentSizes[size] ?? 0, expectedSizes[size] ?? 0)]));
-        const stock = totalSizeStock(sizeStocks);
-        await client.from("products").update({ stock, size_stock: sizeStocks }).eq("name", row.name);
+        if (hasSizeStockColumn) {
+          const productSizes = matching[0]?.product.sizes ?? ["S", "M", "L", "XL"];
+          const beforeSizes = normalizeSizeStock((row as { size_stock?: unknown }).size_stock, Number(row.stock ?? 0), productSizes);
+          const expectedSizes = { ...beforeSizes };
+          matching.forEach((item) => { expectedSizes[item.size] = Math.max(0, (expectedSizes[item.size] ?? 0) - item.quantity); });
+          const currentSizes = normalizeSizeStock((currentRow as { size_stock?: unknown }).size_stock, Number(currentRow.stock ?? 0), productSizes);
+          const sizeStocks = Object.fromEntries(productSizes.map((size) => [size, Math.min(currentSizes[size] ?? 0, expectedSizes[size] ?? 0)]));
+          await client.from("products").update({ stock: totalSizeStock(sizeStocks), size_stock: sizeStocks }).eq("name", row.name);
+        } else {
+          const expectedStock = Math.max(0, Number(row.stock ?? 0) - quantity);
+          const stockAfterTrigger = Number(currentRow.stock ?? 0);
+          await client.from("products").update({ stock: Math.min(stockAfterTrigger, expectedStock) }).eq("name", row.name);
+        }
       }
     }));
     const customerOrder = { id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" as const }; saveCustomerOrder(customerOrder); setOrder(customerOrder); setOrderHistory((current) => [customerOrder, ...current.filter((saved) => saved.id !== customerOrder.id)]); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
