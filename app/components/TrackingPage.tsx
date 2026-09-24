@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Order, formatPrice } from "./types";
-import { getOrderStatus, getSavedOrderStatus, OrderStatus } from "../lib/localOrders";
+import { getOrderStatus, OrderStatus } from "../lib/localOrders";
 import { supabase } from "../lib/supabase";
 
 export default function TrackingPage({ order, orders, onBack }: { order: Order | null; orders?: Order[]; onBack: () => void }) {
@@ -13,7 +13,7 @@ export default function TrackingPage({ order, orders, onBack }: { order: Order |
       const next: Record<string, OrderStatus> = {};
       await Promise.all(trackedOrders.map(async (trackedOrder) => {
         const fallback = getOrderStatus(trackedOrder.id, (trackedOrder.status as OrderStatus | undefined) ?? "Pesanan diterima");
-        if (getSavedOrderStatus(trackedOrder.id) || !supabase) { next[trackedOrder.id] = fallback; return; }
+        if (!supabase) { next[trackedOrder.id] = fallback; return; }
         const { data, error } = await supabase.from("orders").select("status").eq("order_number", trackedOrder.id).maybeSingle();
         next[trackedOrder.id] = !error && data?.status ? data.status as OrderStatus : fallback;
       }));
