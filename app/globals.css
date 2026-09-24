@@ -49,3 +49,4 @@ footer{margin-top:24px;border-top:5px solid var(--cream)}
 .admin-product-actions{gap:14px}.admin-size-stock>span{min-width:122px}.admin-size-stock strong{min-width:22px!important}.admin-stock-total{min-width:92px!important;font-size:11px!important}
 .size-picker button:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .stock-label small{margin-left:auto;color:var(--muted);font:9px 'DM Mono'}
+.order-products{display:block;color:var(--ink)!important;font:10px 'DM Mono'!important;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:720px}
