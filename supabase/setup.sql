@@ -3,6 +3,7 @@
 
 alter table public.products add column if not exists description text default '';
 alter table public.orders add column if not exists status text default 'Pesanan diterima';
+create unique index if not exists orders_order_number_unique on public.orders (order_number);
 
 update public.orders
 set status = 'Pesanan diterima'
