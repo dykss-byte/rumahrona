@@ -22,7 +22,7 @@ export default function PaymentPage({ cart, userEmail, initialProfile, onBack, o
     if (nextName !== name) setName(nextName);
     if (nextWhatsapp !== whatsapp) setWhatsapp(nextWhatsapp);
     if (nextAddress !== address) setAddress(nextAddress);
-  }, [userEmail, initialProfile?.name, initialProfile?.whatsapp, initialProfile?.address, name, whatsapp, address]);
+  }, [userEmail, initialProfile?.name, initialProfile?.whatsapp, initialProfile?.address]);
 
   const validate = () => {
     const next: FormErrors = {};
@@ -30,7 +30,7 @@ export default function PaymentPage({ cart, userEmail, initialProfile, onBack, o
     const cleanAddress = address.trim();
     if (!cleanName) next.name = "Nama lengkap wajib diisi.";
     else if (cleanName.length < 3) next.name = "Nama minimal 3 karakter.";
-    else if (!/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]*$/.test(cleanName)) next.name = "Nama hanya boleh berisi huruf.";
+    else if (!/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'-]*$/.test(cleanName)) next.name = "Nama hanya boleh berisi huruf dan angka.";
     if (!whatsapp) next.whatsapp = "Nomor WhatsApp wajib diisi.";
     else if (!/^\d+$/.test(whatsapp) || whatsapp.length < 9 || whatsapp.length > 13) next.whatsapp = "Isi angka saja, 9–13 digit.";
     if (!cleanAddress) next.address = "Alamat pengiriman wajib diisi.";
