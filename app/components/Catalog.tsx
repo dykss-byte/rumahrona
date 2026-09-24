@@ -40,7 +40,6 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
       if (!alive || !productData) return;
       const cached = getProductCache();
       const remoteRows = productData.map((row) => ({ ...row, description: cached.find((item) => String(item.id) === String(row.id))?.description }));
-      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, size_stock: item.sizeStocks, description: item.description ?? "" } as typeof remoteRows[number]); });
       const sold = new Map<string, number>();
       const soldBySize = new Map<string, number>();
       (itemData ?? []).forEach((item) => {
