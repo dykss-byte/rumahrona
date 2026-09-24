@@ -114,6 +114,9 @@ export default function AdminPage() {
     setRemoteProducts(nextProducts);
     let result = await supabase.from("products").update({ stock: next, size_stock: sizeStocks }).eq("id", product.id).select("id").maybeSingle();
     if (!result.data && !result.error) result = await supabase.from("products").update({ stock: next, size_stock: sizeStocks }).eq("name", product.name).select("id").maybeSingle();
+    if (result.error && /size_stock|column/i.test(result.error.message)) {
+      result = await supabase.from("products").update({ stock: next }).eq("name", product.name).select("id").maybeSingle();
+    }
     if (result.error || !result.data) { setError(result.error?.message || "Stok gagal disimpan ke database."); await loadData(); }
   };
   const categoryProductCount = (category: string) => productsForAdmin.filter((product) => product.category.trim().toLowerCase() === category.trim().toLowerCase()).length;

@@ -33,14 +33,14 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
     const client = supabase;
     let alive = true;
     const refreshProducts = async () => {
-      const [{ data: productData }, { data: itemData }] = await Promise.all([
-        client.from("products").select("id, name, price, category, stock, size_stock"),
-        client.from("order_items").select("product_name, size, quantity"),
-      ]);
+      const productQuery = await client.from("products").select("id, name, price, category, stock, size_stock");
+      const sizeColumnAvailable = !productQuery.error;
+      const productData = sizeColumnAvailable ? productQuery.data : (await client.from("products").select("id, name, price, category, stock")).data;
+      const { data: itemData } = await client.from("order_items").select("product_name, size, quantity");
       if (!alive || !productData) return;
       const cached = getProductCache();
       const remoteRows = productData.map((row) => ({ ...row, description: cached.find((item) => String(item.id) === String(row.id))?.description }));
-      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, size_stock: item.sizeStocks, description: item.description ?? "" }); });
+      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, size_stock: item.sizeStocks, description: item.description ?? "" } as typeof remoteRows[number]); });
       const sold = new Map<string, number>();
       const soldBySize = new Map<string, number>();
       (itemData ?? []).forEach((item) => {
@@ -59,7 +59,7 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
         const persistedSizeStock = (row as { size_stock?: unknown }).size_stock;
         const hasPersistedSizeStock = Boolean(persistedSizeStock && typeof persistedSizeStock === "object" && !Array.isArray(persistedSizeStock) && Object.keys(persistedSizeStock as object).length);
         const sizeStocks = normalizeSizeStock(persistedSizeStock, Number(row.stock ?? base.stock ?? 10), base.sizes);
-        if (!hasPersistedSizeStock) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
+        if (sizeColumnAvailable && !hasPersistedSizeStock) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
         getLocalOrders().forEach((order) => order.items.filter((item) => item.product_name.trim().toLowerCase() === key).forEach((item) => { sizeStocks[item.size] = Math.max(0, (sizeStocks[item.size] ?? 0) - item.quantity); }));
         const soldQuantity = (sold.get(key) ?? 0) + (localSold.get(key) ?? 0);
         const calculatedStock = Math.max(0, totalSizeStock(sizeStocks, (base.stock ?? 10) - soldQuantity));
