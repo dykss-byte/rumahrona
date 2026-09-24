@@ -19,6 +19,7 @@ import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
 import AddressModal from "./components/AddressModal";
 import { getCustomerOrder, getCustomerOrders, saveCustomerOrder } from "./lib/customerOrders";
 import { normalizeSizeStock, splitStock, totalSizeStock } from "./lib/sizeStock";
+import { getProductCache, saveProductCache } from "./lib/productCache";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -98,6 +99,16 @@ export default function Home() {
         }
       }
     }));
+    const cachedProducts = getProductCache();
+    const nextCachedProducts = cart.reduce((current, cartItem) => {
+      const existing = current.find((item) => item.name.trim().toLowerCase() === cartItem.product.name.trim().toLowerCase());
+      const source = existing ?? { id: cartItem.product.id, name: cartItem.product.name, price: cartItem.product.price, category: cartItem.product.category, stock: cartItem.product.stock ?? 0, description: cartItem.product.description };
+      const sizeStocks = normalizeSizeStock(existing?.sizeStocks ?? cartItem.product.sizeStocks, source.stock, cartItem.product.sizes);
+      sizeStocks[cartItem.size] = Math.max(0, (sizeStocks[cartItem.size] ?? 0) - cartItem.quantity);
+      const updated = { ...source, sizeStocks, stock: totalSizeStock(sizeStocks) };
+      return existing ? current.map((item) => item === existing ? updated : item) : [...current, updated];
+    }, cachedProducts);
+    saveProductCache(nextCachedProducts);
     const customerOrder = { id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" as const }; saveCustomerOrder(customerOrder); setOrder(customerOrder); setOrderHistory((current) => [customerOrder, ...current.filter((saved) => saved.id !== customerOrder.id)]); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
   };
   if (showPayment) return <main><PaymentPage cart={cart} userEmail={user?.email} initialProfile={profile} onBack={() => setShowPayment(false)} onSuccess={completeOrder} />{notice && <div className="toast">✓ {notice}</div>}</main>;

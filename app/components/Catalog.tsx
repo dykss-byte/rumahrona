@@ -58,7 +58,7 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
         const persistedSizeStock = (row as { size_stock?: unknown }).size_stock;
         const hasPersistedSizeStock = Boolean(persistedSizeStock && typeof persistedSizeStock === "object" && !Array.isArray(persistedSizeStock) && Object.keys(persistedSizeStock as object).length && !(row as { size_stock_from_cache?: boolean }).size_stock_from_cache);
         const sizeStocks = normalizeSizeStock(persistedSizeStock, Number(row.stock ?? base.stock ?? 10), base.sizes);
-        if (!hasPersistedSizeStock) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
+        if (!hasPersistedSizeStock && !(row as { size_stock_from_cache?: boolean }).size_stock_from_cache) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
         getLocalOrders().forEach((order) => order.items.filter((item) => item.product_name.trim().toLowerCase() === key).forEach((item) => { sizeStocks[item.size] = Math.max(0, (sizeStocks[item.size] ?? 0) - item.quantity); }));
         const soldQuantity = (sold.get(key) ?? 0) + (localSold.get(key) ?? 0);
         const calculatedStock = Math.max(0, totalSizeStock(sizeStocks, (base.stock ?? 10) - soldQuantity));
