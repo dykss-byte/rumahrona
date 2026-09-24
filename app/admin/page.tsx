@@ -112,11 +112,12 @@ export default function AdminPage() {
     const nextProducts = (current: RemoteProduct[]) => { const source = current.length ? current : productsForAdmin; const updated = source.map((item) => sameProductId(item.id, product.id) ? { ...item, stock: next, sizeStocks } : item); saveProductCache(updated); return updated; };
     if (!supabase) { setRemoteProducts(nextProducts); return; }
     setRemoteProducts(nextProducts);
-    let result = await supabase.from("products").update(product.sizeStocks ? { stock: next, size_stock: sizeStocks } : { stock: next }).eq("name", product.name);
-    if (result.error && /size_stock|column/i.test(result.error.message)) {
-      result = await supabase.from("products").update({ stock: next }).eq("name", product.name);
-    }
-    if (result.error) { setError(result.error.message); await loadData(); }
+    const payload = product.sizeStocks ? { stock: next, size_stock: sizeStocks } : { stock: next };
+    let result = await supabase.from("products").update(payload).eq("id", product.id).select("id").maybeSingle();
+    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("id", product.id).select("id").maybeSingle();
+    if ((!result.data && !result.error) || result.error) result = await supabase.from("products").update(payload).eq("name", product.name).select("id").maybeSingle();
+    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("name", product.name).select("id").maybeSingle();
+    if (result.error || !result.data) { setError(result.error?.message || "Stok gagal disimpan ke database."); await loadData(); }
   };
   const categoryProductCount = (category: string) => productsForAdmin.filter((product) => product.category.trim().toLowerCase() === category.trim().toLowerCase()).length;
   const addCategory = (event: FormEvent) => { event.preventDefault(); const category = newCategory.trim(); if (!category) return; if (editingCategory && categoryProductCount(editingCategory) > 0) { setError("Kategori yang sudah memiliki produk tidak dapat diubah."); return; } if (savedCategories.some((item) => item.toLowerCase() === category.toLowerCase() && item.toLowerCase() !== editingCategory?.toLowerCase())) { setError("Kategori tersebut sudah ada."); return; } const next = editingCategory ? [...new Set(savedCategories.map((item) => item === editingCategory ? category : item))] : [...new Set([...savedCategories, category])]; setSavedCategories(next); saveCategoryCache(next); setForm((current) => ({ ...current, category })); setNewCategory(""); setEditingCategory(null); setError(""); };
