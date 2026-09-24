@@ -2,6 +2,7 @@
 -- Script ini menyiapkan stok, pesanan, item pesanan, dan status tracking.
 
 alter table public.products add column if not exists description text default '';
+alter table public.products add column if not exists size_stock jsonb not null default '{}'::jsonb;
 alter table public.orders add column if not exists status text default 'Pesanan diterima';
 -- Index biasa dipakai agar setup tetap berhasil meskipun ada data lama
 -- dengan nomor pesanan yang sama.
@@ -11,6 +12,16 @@ create index if not exists orders_order_number_idx on public.orders (order_numbe
 update public.orders
 set status = 'Pesanan diterima'
 where status is null;
+
+-- Produk lama dibagi rata ke ukuran S, M, L, dan XL sebagai nilai awal.
+update public.products
+set size_stock = jsonb_build_object(
+  'S', floor(coalesce(stock, 0) / 4),
+  'M', floor(coalesce(stock, 0) / 4),
+  'L', floor(coalesce(stock, 0) / 4),
+  'XL', coalesce(stock, 0) - (floor(coalesce(stock, 0) / 4) * 3)
+)
+where size_stock = '{}'::jsonb;
 
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
@@ -79,7 +90,13 @@ set search_path = public
 as $$
 begin
   update public.products
-  set stock = greatest(coalesce(stock, 0) - new.quantity, 0)
+  set stock = greatest(coalesce(stock, 0) - new.quantity, 0),
+      size_stock = jsonb_set(
+        coalesce(size_stock, '{}'::jsonb),
+        array[new.size],
+        to_jsonb(greatest(coalesce((size_stock ->> new.size)::integer, 0) - new.quantity, 0)),
+        true
+      )
   where lower(trim(name)) = lower(trim(new.product_name));
   return new;
 end;

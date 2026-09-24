@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { getProductCache } from "../lib/productCache";
 import { getCategoryCache } from "../lib/categoryCache";
 import { getLocalOrders } from "../lib/localOrders";
+import { normalizeSizeStock, totalSizeStock } from "../lib/sizeStock";
 
 export default function Catalog({ onAdd }: { onAdd: (product: Product, size: string) => void }) {
   const [category, setCategory] = useState("Semua");
@@ -21,7 +22,7 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
       const refreshLocalProducts = () => {
         const sold = new Map<string, number>();
         getLocalOrders().forEach((order) => order.items.forEach((item) => { const key = item.product_name.trim().toLowerCase(); sold.set(key, (sold.get(key) ?? 0) + item.quantity); }));
-        setProducts(defaultProducts.map((product) => ({ ...product, stock: Math.max(0, (product.stock ?? 10) - (sold.get(product.name.trim().toLowerCase()) ?? 0)) })));
+        setProducts(defaultProducts.map((product) => { const sizeStocks = normalizeSizeStock(product.sizeStocks, product.stock ?? 10, product.sizes); getLocalOrders().forEach((order) => order.items.filter((item) => item.product_name.trim().toLowerCase() === product.name.trim().toLowerCase()).forEach((item) => { sizeStocks[item.size] = Math.max(0, (sizeStocks[item.size] ?? 0) - item.quantity); })); return { ...product, sizeStocks, stock: totalSizeStock(sizeStocks) }; }));
       };
       refreshLocalProducts();
       const timer = window.setInterval(refreshLocalProducts, 1000);
@@ -33,17 +34,19 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
     let alive = true;
     const refreshProducts = async () => {
       const [{ data: productData }, { data: itemData }] = await Promise.all([
-        client.from("products").select("id, name, price, category, stock"),
-        client.from("order_items").select("product_name, quantity"),
+        client.from("products").select("id, name, price, category, stock, size_stock"),
+        client.from("order_items").select("product_name, size, quantity"),
       ]);
       if (!alive || !productData) return;
       const cached = getProductCache();
       const remoteRows = productData.map((row) => ({ ...row, description: cached.find((item) => String(item.id) === String(row.id))?.description }));
-      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, description: item.description ?? "" }); });
+      cached.forEach((item) => { if (!remoteRows.some((row) => String(row.id) === String(item.id))) remoteRows.push({ ...item, size_stock: item.sizeStocks, description: item.description ?? "" }); });
       const sold = new Map<string, number>();
+      const soldBySize = new Map<string, number>();
       (itemData ?? []).forEach((item) => {
         const key = String(item.product_name).trim().toLowerCase();
         sold.set(key, (sold.get(key) ?? 0) + Number(item.quantity || 0));
+        soldBySize.set(`${key}::${item.size}`, (soldBySize.get(`${key}::${item.size}`) ?? 0) + Number(item.quantity || 0));
       });
       const localSold = new Map<string, number>();
       getLocalOrders().forEach((order) => order.items.forEach((item) => {
@@ -53,11 +56,16 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
       const mapped = remoteRows.map((row, index) => {
         const base = defaultProducts.find((product) => String(product.id) === String(row.id) || product.name.trim().toLowerCase() === String(row.name).trim().toLowerCase()) ?? defaultProducts[index % defaultProducts.length];
         const key = String(row.name).trim().toLowerCase();
+        const persistedSizeStock = (row as { size_stock?: unknown }).size_stock;
+        const hasPersistedSizeStock = Boolean(persistedSizeStock && typeof persistedSizeStock === "object" && !Array.isArray(persistedSizeStock) && Object.keys(persistedSizeStock as object).length);
+        const sizeStocks = normalizeSizeStock(persistedSizeStock, Number(row.stock ?? base.stock ?? 10), base.sizes);
+        if (!hasPersistedSizeStock) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
+        getLocalOrders().forEach((order) => order.items.filter((item) => item.product_name.trim().toLowerCase() === key).forEach((item) => { sizeStocks[item.size] = Math.max(0, (sizeStocks[item.size] ?? 0) - item.quantity); }));
         const soldQuantity = (sold.get(key) ?? 0) + (localSold.get(key) ?? 0);
-        const calculatedStock = Math.max(0, (base.stock ?? 10) - soldQuantity);
+        const calculatedStock = Math.max(0, totalSizeStock(sizeStocks, (base.stock ?? 10) - soldQuantity));
         const databaseStock = Number(row.stock);
         const stock = Number.isFinite(databaseStock) ? Math.min(Math.max(0, databaseStock - (localSold.get(key) ?? 0)), calculatedStock) : calculatedStock;
-        return { ...base, id: typeof row.id === "number" ? row.id : 10000 + index, name: row.name || base.name, price: Number(row.price ?? base.price), category: row.category || base.category, stock, description: cached.find((item) => String(item.id) === String(row.id))?.description || base.description };
+        return { ...base, id: typeof row.id === "number" ? row.id : 10000 + index, name: row.name || base.name, price: Number(row.price ?? base.price), category: row.category || base.category, sizeStocks, stock, description: cached.find((item) => String(item.id) === String(row.id))?.description || base.description };
       });
       setProducts(mapped);
     };

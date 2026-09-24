@@ -9,6 +9,7 @@ export type Product = {
   sizes: string[];
   tag?: string;
   stock?: number;
+  sizeStocks?: Record<string, number>;
   description: string;
 };
 

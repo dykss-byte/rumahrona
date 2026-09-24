@@ -18,6 +18,7 @@ import AdminPage from "./admin/page";
 import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
 import AddressModal from "./components/AddressModal";
 import { getCustomerOrder, getCustomerOrders, saveCustomerOrder } from "./lib/customerOrders";
+import { normalizeSizeStock, totalSizeStock } from "./lib/sizeStock";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -53,11 +54,11 @@ export default function Home() {
     restoreLatestOrder();
   }, [user, profile.whatsapp]);
   const addToCart = (product: Product, size: string) => {
-    setCart((items) => { const found = items.find((item) => item.product.id === product.id && item.size === size); if (found && found.quantity >= (product.stock ?? 0)) { setNotice("Stok produk ini sudah maksimal."); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
+    setCart((items) => { const available = product.sizeStocks?.[size] ?? product.stock ?? 0; const found = items.find((item) => item.product.id === product.id && item.size === size); if (available < 1 || (found && found.quantity >= available)) { setNotice(`Stok ukuran ${size} sudah habis.`); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
     setNotice(`${product.name} ditambahkan ke keranjang`);
     setTimeout(() => setNotice(""), 2200);
   };
-  const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => item.product.id === productId && item.size === size ? (item.quantity + change > 0 ? [{ ...item, quantity: item.quantity + change }] : []) : [item]));
+  const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => { if (item.product.id !== productId || item.size !== size) return [item]; const available = item.product.sizeStocks?.[size] ?? item.product.stock ?? 0; const next = Math.min(available, item.quantity + change); return next > 0 ? [{ ...item, quantity: next }] : []; }));
   const checkout = () => { if (!user) { setShowCart(false); setShowJoinPrompt(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -69,15 +70,22 @@ export default function Home() {
     const { data: savedOrder, error: orderError } = await client.from("orders").insert({ order_number: orderNumber, customer_name: details.name, whatsapp: details.whatsapp, address: details.address, payment_method: details.method, total }).select().single();
     if (orderError || !savedOrder) { saveOffline(); return; }
     const productNames = [...new Set(cart.map((item) => item.product.name))];
-    const { data: stockBeforeRows } = await client.from("products").select("name, stock").in("name", productNames);
+    const { data: stockBeforeRows } = await client.from("products").select("name, stock, size_stock").in("name", productNames);
     const { error: itemsError } = await client.from("order_items").insert(cart.map((item) => ({ order_id: savedOrder.id, product_id: null, product_name: item.product.name, size: item.size, quantity: item.quantity, price: item.product.price })));
     if (itemsError) { saveOffline(); return; }
     await Promise.all((stockBeforeRows ?? []).map(async (row) => {
-      const quantity = cart.filter((item) => item.product.name === row.name).reduce((sum, item) => sum + item.quantity, 0);
-      const stockBefore = Number(row.stock ?? 0);
-      const expectedStock = Math.max(0, stockBefore - quantity);
-      const { data: currentRow } = await client.from("products").select("stock").eq("name", row.name).maybeSingle();
-      if (currentRow && Number(currentRow.stock ?? 0) > expectedStock) await client.from("products").update({ stock: expectedStock }).eq("name", row.name);
+      const matching = cart.filter((item) => item.product.name === row.name);
+      const productSizes = matching[0]?.product.sizes ?? ["S", "M", "L", "XL"];
+      const beforeSizes = normalizeSizeStock((row as { size_stock?: unknown }).size_stock, Number(row.stock ?? 0), productSizes);
+      const expectedSizes = { ...beforeSizes };
+      matching.forEach((item) => { expectedSizes[item.size] = Math.max(0, (expectedSizes[item.size] ?? 0) - item.quantity); });
+      const { data: currentRow } = await client.from("products").select("stock, size_stock").eq("name", row.name).maybeSingle();
+      if (currentRow) {
+        const currentSizes = normalizeSizeStock((currentRow as { size_stock?: unknown }).size_stock, Number(currentRow.stock ?? 0), productSizes);
+        const sizeStocks = Object.fromEntries(productSizes.map((size) => [size, Math.min(currentSizes[size] ?? 0, expectedSizes[size] ?? 0)]));
+        const stock = totalSizeStock(sizeStocks);
+        await client.from("products").update({ stock, size_stock: sizeStocks }).eq("name", row.name);
+      }
     }));
     const customerOrder = { id: savedOrder.order_number, items: cart, total, status: "Pesanan diterima" as const }; saveCustomerOrder(customerOrder); setOrder(customerOrder); setOrderHistory((current) => [customerOrder, ...current.filter((saved) => saved.id !== customerOrder.id)]); setCart([]); setNotice("Pesanan berhasil dibuat! Stok sedang diperbarui dari database."); setShowPayment(false);
   };
