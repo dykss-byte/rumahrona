@@ -48,3 +48,4 @@ footer{margin-top:24px;border-top:5px solid var(--cream)}
 .admin-size-stock{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.admin-size-stock>span{display:grid;grid-template-columns:auto 30px 22px 30px;align-items:center;gap:4px}.admin-size-stock>span>b{font:11px 'DM Mono';min-width:18px}.admin-size-stock button{width:30px;height:30px;padding:0!important;display:grid;place-items:center}.admin-size-stock strong{font:11px 'DM Mono';text-align:center}.admin-stock-total{white-space:nowrap}
 .admin-product-actions{gap:14px}.admin-size-stock>span{min-width:122px}.admin-size-stock strong{min-width:22px!important}.admin-stock-total{min-width:92px!important;font-size:11px!important}
 .size-picker button:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.stock-label small{margin-left:auto;color:var(--muted);font:9px 'DM Mono'}
