@@ -117,11 +117,11 @@ export default function AdminPage() {
     if (!supabase) { setRemoteProducts(nextProducts); setUpdatingStock(""); return; }
     setRemoteProducts(nextProducts);
     const payload = product.sizeStocks ? { stock: next, size_stock: sizeStocks } : { stock: next };
-    let result = await supabase.from("products").update(payload).eq("id", product.id).select("id").maybeSingle();
-    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("id", product.id).select("id").maybeSingle();
-    if ((!result.data && !result.error) || result.error) result = await supabase.from("products").update(payload).eq("name", product.name).select("id").maybeSingle();
-    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("name", product.name).select("id").maybeSingle();
-    if (result.error || !result.data) { setError(result.error?.message || "Stok gagal disimpan ke database."); await loadData(); }
+    let result = await supabase.from("products").update(payload).eq("id", product.id);
+    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("id", product.id);
+    if (result.error) result = await supabase.from("products").update(payload).eq("name", product.name);
+    if (result.error && /size_stock|column/i.test(result.error.message)) result = await supabase.from("products").update({ stock: next }).eq("name", product.name);
+    if (result.error) { setError(result.error.message); await loadData(); }
     setUpdatingStock("");
   };
   const categoryProductCount = (category: string) => productsForAdmin.filter((product) => product.category.trim().toLowerCase() === category.trim().toLowerCase()).length;
