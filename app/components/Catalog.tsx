@@ -45,11 +45,16 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
         const key = String(item.product_name).trim().toLowerCase();
         sold.set(key, (sold.get(key) ?? 0) + Number(item.quantity || 0));
       });
+      const localSold = new Map<string, number>();
+      getLocalOrders().forEach((order) => order.items.forEach((item) => {
+        const key = item.product_name.trim().toLowerCase();
+        localSold.set(key, (localSold.get(key) ?? 0) + item.quantity);
+      }));
       const mapped = remoteRows.map((row, index) => {
         const base = defaultProducts.find((product) => String(product.id) === String(row.id) || product.name.trim().toLowerCase() === String(row.name).trim().toLowerCase()) ?? defaultProducts[index % defaultProducts.length];
         const key = String(row.name).trim().toLowerCase();
-        const fallbackStock = Math.max(0, (base.stock ?? 10) - (sold.get(key) ?? 0));
-        return { ...base, id: typeof row.id === "number" ? row.id : 10000 + index, name: row.name || base.name, price: Number(row.price ?? base.price), category: row.category || base.category, stock: Number.isFinite(Number(row.stock)) ? Number(row.stock) : fallbackStock, description: cached.find((item) => String(item.id) === String(row.id))?.description || base.description };
+        const fallbackStock = Math.max(0, (base.stock ?? 10) - (sold.get(key) ?? 0) - (localSold.get(key) ?? 0));
+        return { ...base, id: typeof row.id === "number" ? row.id : 10000 + index, name: row.name || base.name, price: Number(row.price ?? base.price), category: row.category || base.category, stock: Math.max(0, Number.isFinite(Number(row.stock)) ? Number(row.stock) - (localSold.get(key) ?? 0) : fallbackStock), description: cached.find((item) => String(item.id) === String(row.id))?.description || base.description };
       });
       setProducts(mapped);
     };

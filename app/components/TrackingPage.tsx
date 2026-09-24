@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Order, formatPrice } from "./types";
-import { getOrderStatus, OrderStatus } from "../lib/localOrders";
+import { getOrderStatus, getSavedOrderStatus, OrderStatus } from "../lib/localOrders";
 import { supabase } from "../lib/supabase";
 
 export default function TrackingPage({ order, onBack }: { order: Order | null; onBack: () => void }) {
@@ -11,6 +11,7 @@ export default function TrackingPage({ order, onBack }: { order: Order | null; o
     const syncStatus = async () => {
       const localStatus = getOrderStatus(order.id, (order.status as OrderStatus | undefined) ?? "Pesanan diterima");
       setStatus(localStatus);
+      if (getSavedOrderStatus(order.id)) return;
       if (!supabase) return;
       const { data } = await supabase.from("orders").select("status").eq("order_number", order.id).maybeSingle();
       if (data?.status) setStatus(data.status as OrderStatus);
