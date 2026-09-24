@@ -23,7 +23,7 @@ using (true)
 with check (status in ('Pesanan diterima', 'Diproses', 'Dikemas', 'Dikirim', 'Selesai', 'Dibatalkan'));
 
 create or replace function public.update_order_status(p_order_number text, p_status text)
-returns public.orders
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
@@ -44,7 +44,7 @@ begin
     raise exception 'Pesanan tidak ditemukan';
   end if;
 
-  return updated_order;
+  return jsonb_build_object('order_number', updated_order.order_number, 'status', updated_order.status);
 end;
 $$;
 
@@ -60,3 +60,5 @@ end
 $$;
 
 notify pgrst, 'reload schema';
+
+select to_regprocedure('public.update_order_status(text,text)') as installed_function;
