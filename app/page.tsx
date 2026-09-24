@@ -18,7 +18,7 @@ import AdminPage from "./admin/page";
 import { makeLocalOrder, saveLocalOrder } from "./lib/localOrders";
 import AddressModal from "./components/AddressModal";
 import { getCustomerOrder, getCustomerOrders, saveCustomerOrder } from "./lib/customerOrders";
-import { normalizeSizeStock, totalSizeStock } from "./lib/sizeStock";
+import { normalizeSizeStock, splitStock, totalSizeStock } from "./lib/sizeStock";
 
 export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -54,11 +54,11 @@ export default function Home() {
     restoreLatestOrder();
   }, [user, profile.whatsapp]);
   const addToCart = (product: Product, size: string) => {
-    setCart((items) => { const available = product.sizeStocks?.[size] ?? product.stock ?? 0; const found = items.find((item) => item.product.id === product.id && item.size === size); if (available < 1 || (found && found.quantity >= available)) { setNotice(`Stok ukuran ${size} sudah habis.`); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
+    setCart((items) => { const available = (product.sizeStocks ?? splitStock(product.stock ?? 0, product.sizes))[size] ?? 0; const found = items.find((item) => item.product.id === product.id && item.size === size); if (available < 1 || (found && found.quantity >= available)) { setNotice(`Stok ukuran ${size} sudah maksimal.`); return items; } return found ? items.map((item) => item.product.id === product.id && item.size === size ? { ...item, quantity: item.quantity + 1 } : item) : [...items, { product, size, quantity: 1 }]; });
     setNotice(`${product.name} ditambahkan ke keranjang`);
     setTimeout(() => setNotice(""), 2200);
   };
-  const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => { if (item.product.id !== productId || item.size !== size) return [item]; const available = item.product.sizeStocks?.[size] ?? item.product.stock ?? 0; const next = Math.min(available, item.quantity + change); return next > 0 ? [{ ...item, quantity: next }] : []; }));
+  const changeQuantity = (productId: number, size: string, change: number) => setCart((items) => items.flatMap((item) => { if (item.product.id !== productId || item.size !== size) return [item]; const available = (item.product.sizeStocks ?? splitStock(item.product.stock ?? 0, item.product.sizes))[size] ?? 0; const next = Math.min(available, item.quantity + change); return next > 0 ? [{ ...item, quantity: next }] : []; }));
   const checkout = () => { if (!user) { setShowCart(false); setShowJoinPrompt(true); return; } setShowCart(false); setShowPayment(true); };
   const completeOrder = async (details: { method: string; name: string; whatsapp: string; address: string }) => {
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
