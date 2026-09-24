@@ -39,7 +39,7 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
       const { data: itemData } = await client.from("order_items").select("product_name, size, quantity");
       if (!alive || !productData) return;
       const cached = getProductCache();
-      const remoteRows = productData.map((row) => ({ ...row, description: cached.find((item) => String(item.id) === String(row.id))?.description }));
+      const remoteRows = productData.map((row) => { const saved = cached.find((item) => String(item.id) === String(row.id)); return { ...row, size_stock: (row as { size_stock?: unknown }).size_stock ?? saved?.sizeStocks, size_stock_from_cache: !("size_stock" in row), description: saved?.description }; });
       const sold = new Map<string, number>();
       const soldBySize = new Map<string, number>();
       (itemData ?? []).forEach((item) => {
@@ -56,7 +56,7 @@ export default function Catalog({ onAdd }: { onAdd: (product: Product, size: str
         const base = defaultProducts.find((product) => String(product.id) === String(row.id) || product.name.trim().toLowerCase() === String(row.name).trim().toLowerCase()) ?? defaultProducts[index % defaultProducts.length];
         const key = String(row.name).trim().toLowerCase();
         const persistedSizeStock = (row as { size_stock?: unknown }).size_stock;
-        const hasPersistedSizeStock = Boolean(persistedSizeStock && typeof persistedSizeStock === "object" && !Array.isArray(persistedSizeStock) && Object.keys(persistedSizeStock as object).length);
+        const hasPersistedSizeStock = Boolean(persistedSizeStock && typeof persistedSizeStock === "object" && !Array.isArray(persistedSizeStock) && Object.keys(persistedSizeStock as object).length && !(row as { size_stock_from_cache?: boolean }).size_stock_from_cache);
         const sizeStocks = normalizeSizeStock(persistedSizeStock, Number(row.stock ?? base.stock ?? 10), base.sizes);
         if (!hasPersistedSizeStock) (base.sizes ?? []).forEach((size) => { sizeStocks[size] = Math.max(0, sizeStocks[size] - (soldBySize.get(`${key}::${size}`) ?? 0)); });
         getLocalOrders().forEach((order) => order.items.filter((item) => item.product_name.trim().toLowerCase() === key).forEach((item) => { sizeStocks[item.size] = Math.max(0, (sizeStocks[item.size] ?? 0) - item.quantity); }));
